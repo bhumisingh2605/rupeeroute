@@ -1,0 +1,3 @@
+ALTER TABLE users
+    ADD COLUMN email    VARCHAR(100) UNIQUE NOT NULL DEFAULT 'temp@temp.com',
+ADD COLUMN password VARCHAR(255) NOT NULL DEFAULT 'temp';
