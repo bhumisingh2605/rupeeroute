@@ -73,37 +73,15 @@ jobs:
           mvn clean package -pl notification-service -DskipTests
           mvn clean package -pl api-gateway -DskipTests
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Docker images
+        run: |
+          docker build -t rupeeroute-expense-service ./expense-service
+          docker build -t rupeeroute-settlement-service ./settlement-service
+          docker build -t rupeeroute-notification-service ./notification-service
+          docker build -t rupeeroute-api-gateway ./api-gateway
 
-      - name: Build and push expense-service
-        uses: docker/build-push-action@v5
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          context: ./expense-service
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-expense-service:latest
-
-      - name: Build and push settlement-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./settlement-service
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-settlement-service:latest
-
-      - name: Build and push notification-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./notification-service
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-notification-service:latest
-
-      - name: Build and push api-gateway
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api-gateway
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-api-gateway:latest
+          name: build-artifacts
+          path: '**/target/*.jar'
