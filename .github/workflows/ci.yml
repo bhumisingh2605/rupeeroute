@@ -1,0 +1,109 @@
+name: RupeeRoute CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rupeeroute_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run expense-service tests
+        run: mvn test -pl expense-service
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/rupeeroute_test
+          SPRING_DATASOURCE_USERNAME: test
+          SPRING_DATASOURCE_PASSWORD: test
+
+      - name: Run settlement-service tests
+        run: mvn test -pl settlement-service
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/target/surefire-reports/'
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build all services
+        run: |
+          mvn clean package -pl expense-service -DskipTests
+          mvn clean package -pl settlement-service -DskipTests
+          mvn clean package -pl notification-service -DskipTests
+          mvn clean package -pl api-gateway -DskipTests
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push expense-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./expense-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-expense-service:latest
+
+      - name: Build and push settlement-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./settlement-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-settlement-service:latest
+
+      - name: Build and push notification-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./notification-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-notification-service:latest
+
+      - name: Build and push api-gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api-gateway
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/rupeeroute-api-gateway:latest
